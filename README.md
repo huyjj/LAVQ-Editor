@@ -29,7 +29,7 @@ PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.
 ```
 
 
-## 💻 Usage (3 lines of code)
+## 💻 Usage
 To train LAVQ-Editor, you can use the following code.
 ```
 python train.py --model_name LAVQ_Editor --batch_size 128 
