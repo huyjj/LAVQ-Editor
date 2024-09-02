@@ -1,0 +1,24 @@
+data_root: 'ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/'
+description: "description.json"
+train: True
+classifier: False
+seed: 999
+
+
+classifer: 'resnet34'
+stage_epoch: [501]
+encoder: BaseEncoder
+language_model: 'model/Bio_ClinaBert'
+decoder: Generator
+
+num_classes: 6
+max_epoch: 500
+lr_decay: 10
+num_workers: 8
+pretrain: False
+
+work_dir: 'work_dir'
+ex: 'base'
+
+current_w: 'current.pth'
+best_w: 'best.pth'
