@@ -160,16 +160,13 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
     p_num = {}
     for ind, batch_norm in enumerate(test_loader):
         ecg_ori = batch_norm[0].to(device).float()
-        # print(normal_ecg.shape)
         ori_cls = batch_norm[1].to(device)
         ori_des = batch_norm[3]
         patient_id = batch_norm[2].to(device)
         ori_cls = ori_cls.repeat(128)
-        # ecg_ori.repeat(128, 1, 1)
         
         patient_id = patient_id.repeat(128)
         
-        # print(patient_id.shape, ecg_ori.shape, ori_des, ori_cls.shape)
         with torch.no_grad():
             print(f"Paient_id {patient_id}")
             num_per = 0
@@ -181,7 +178,6 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
                 target = batch[2].to(device)
 
                 choose_item = target.cpu().numpy()!=4
-                # print(normal_ecg.shape, np.linspace(0, 4999, 500))
                 choose_item = np.argwhere(choose_item == True).squeeze(1)
                 print(choose_item)
                 if num_per+len(choose_item) > 200:
@@ -189,8 +185,6 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
                 num_per+=len(choose_item)
                 choose_item = torch.tensor(choose_item, device=ab_ecg.device).long()
 
-                # fixed_input= mets(ab_descrip) # (b, 768)
-                # fixed for diseaseEditor
                 normal_ecg = ecg_ori[:, :, 452:4548].repeat(ab_ecg.shape[0], 1, 1)
                 normal_des = list(ori_des)*ab_ecg.shape[0]
                 # forward
@@ -200,16 +194,12 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
                 const_r = const_r.detach().to(device)
                 ecg_edit = Editor.gen(disease, 10, 1, const_input=const_r)
 
-                # utils.save_ecg_image(ecg_edit[:10], f'{save_dir}/')
-                # utils.save_ecg_image(ab_ecg[:10], f'{save_dir}/ab/')
-                # utils.save_ecg_image(normal_ecg[:10], f'{save_dir}/normal/')
 
                 gen_ecg.append(ecg_edit[choose_item].cpu().detach().numpy())
                 gen_cls.append(target[choose_item].cpu().detach().numpy())
                 gen_id.append(patient_id[choose_item].cpu().numpy())
                 gen_des.extend([ab_descrip[i] for i in choose_item])
                 output = classifier(ecg_edit)
-                # loss_recon = criterion[2](ecg_recon, ab_ecg[:, :12])
 
                 it_count += 1
                 output = torch.sigmoid(output)
@@ -217,7 +207,6 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
                 f1_meter += f1
                 acc_meter += acc
                 for i in target.cpu().detach().numpy():
-                    # print(i)
                     weight[classes[i]] += 1
 
 
@@ -253,7 +242,7 @@ def train(args):
 
     Editor = Ecgedit(disease_model=model, structure='linear', resolution=4096, num_channels=12, latent_size=1024, dlatent_size=2048, fmap_max=512,
                    loss="logistic", const_input_dim=0, device=device, n_classes=5, logger=logger, lr=args.lr)
-    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='/data2/huyaojun/Ecgedit/ckpt2/resnet34_202311301714sclc-5/best_w.pth')
+    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='./ckpt2/resnet34_202311301714sclc-5/best_w.pth')
     best_f1 = -1
     best_acc = -1
     lr = args.lr
@@ -351,7 +340,7 @@ def Gen_test(args):
     if args.clip_dir:
         model.load_state_dict(torch.load(args.clip_dir, map_location='cpu')['state_dict'])
         print(f'Model Load from {args.clip_dir}....')
-    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='/data2/huyaojun/Ecgedit/ckpt2/resnet34_202311301714sclc-5/best_w.pth')
+    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='./ckpt2/resnet34_202311301714sclc-5/best_w.pth')
     
 
     print(f"Model init....")
@@ -388,7 +377,7 @@ def Gen_test(args):
     #                             num_workers=args.num_workers, collate_fn=collect_fn_ori, drop_last=True)
     # generator
     test_dataset = PTBXLTestClsdataset(args.data_root+'reprepared/', True, choose=['NORM',], 
-                                       train_lis=['/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1'])  # choose normal
+                                       train_lis=['./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1'])  # choose normal
     test_dataloader = DataLoader(test_dataset, batch_size=1, 
                                 num_workers=args.num_workers, drop_last=True)
     print_log(f"train_datasize {len(train_dataset)} test_datasize {len(test_dataset)}", model_save_dir)

@@ -31,7 +31,7 @@ class Config:
     lr_decay = 10
 
     #for test
-    root = ''
+    root = 'work_dir'
     temp_dir=os.path.join(root, 'temp')
 
 

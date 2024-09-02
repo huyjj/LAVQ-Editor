@@ -166,33 +166,31 @@ def train(args):
         os.makedirs(model_save_dir+'/half1/')
         os.makedirs(model_save_dir+'/total/')
 
-    train_dataset = PTBXLTestClsdataset('/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/',
+    train_dataset = PTBXLTestClsdataset('./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/',
                                          True, choose=None, 
                                          train_lis=[#'work_dir/Gen_Wcgan/202401130438/ecg',
                                              'work_dir/Gen_half1/202312211352/ecg',
-                                             #'work_dir/home/work_dir/Gen_05Nowave200/202403192258/ecg',
-                                            #'work_dir/home/work_dir/Gen_05Nowave100/202403192256/ecg',
-                                             '/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Train_sclc_X'
+                                             './PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Train_sclc_X'
                                              ])
     train_weight = train_dataset.sample_weight()
     train_sampler = WeightedRandomSampler(train_weight, len(train_weight))
     train_dataloader = DataLoader(train_dataset, batch_size=config.batch_size, sampler=train_sampler,
                                 num_workers=4, drop_last=True)
 
-    val_dataset = PTBXLTestClsdataset('/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
+    val_dataset = PTBXLTestClsdataset('./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
                                       True, choose=['HYP', 'MI', 'CD', 'STTC', 'NORM'],
-                                      train_lis=['/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half2'])  # choose abnormal
+                                      train_lis=['./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half2'])  # choose abnormal
     val_dataloader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=True,
                                 num_workers=4, drop_last=True)
-    val_dataset1 = PTBXLTestClsdataset('/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
+    val_dataset1 = PTBXLTestClsdataset('./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
                                       True, choose=['HYP', 'MI', 'CD', 'STTC', 'NORM'],
-                                      train_lis=['/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1'])  # choose abnormal
+                                      train_lis=['./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1'])  # choose abnormal
 
     val_dataloader1 = DataLoader(val_dataset1, batch_size=config.batch_size, shuffle=True,
                                 num_workers=4, drop_last=True)
-    val_datasett = PTBXLTestClsdataset('/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
+    val_datasett = PTBXLTestClsdataset('./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
                                       False, choose=['HYP', 'MI', 'CD', 'STTC', 'NORM'],
-                                      train_lis=['/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_291_sclc_X'])  # choose abnormal
+                                      train_lis=['./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_291_sclc_X'])  # choose abnormal
     
     val_dataloadert = DataLoader(val_datasett, batch_size=config.batch_size, shuffle=True,
                                 num_workers=4, drop_last=True)
@@ -305,15 +303,9 @@ def val(args):
                                                     map_location='cpu')['state_dict'])
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
-    val_datasett = PTBXLTestClsdataset('/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/',
+    val_datasett = PTBXLTestClsdataset('./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/',
                                          True, choose=None, 
                                          train_lis=['work_dir/Gen/202312291712/ecg',])
-                                            #  '/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1',
-                                            #  '/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half2',
-                                            #  '/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Train_sclc_X'])
-    # val_datasett = PTBXLTestClsdataset('/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/', 
-    #                                   True, choose=['HYP', 'MI', 'CD', 'STTC', 'NORM'],
-    #                                   train_lis=['/data2/huyaojun/PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half2'])  # choose abnormal
     val_dataloadert = DataLoader(val_datasett, batch_size=config.batch_size, 
                                 num_workers=4, drop_last=True)
     best_acc2 = 0

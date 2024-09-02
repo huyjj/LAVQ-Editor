@@ -379,7 +379,7 @@ class Discriminator(nn.Module):
                                                 gain=gain, use_wscale=use_wscale, activation_layer=act)
         else:
             self.final_classifier = DiscriminatorTop(self.mbstd_group_size, self.mbstd_num_features,
-                                                in_channels=nf(2), intermediate_channels=nf(2), output_features=1024 if use_w3 else fmap_max,
+                                                in_channels=nf(2), intermediate_channels=nf(2), output_features=fmap_max,
                                                 gain=gain, use_wscale=use_wscale, activation_layer=act)
         
         # register the temporary downSampler
@@ -472,12 +472,12 @@ class Ecgedit:
 
         self.gen = Generator(num_channels=num_channels,
                                 resolution=resolution,
-                                latent_size=latent_size,
-                                dlatent_size=dlatent_size,
+                                latent_size=latent_size//2,
+                                dlatent_size=dlatent_size//2,
                                 structure=self.structure,
                                 conditional=self.conditional,
                                 n_classes=self.n_classes,
-                                disease_mixing_prob=0,
+                                style_mixing_prob=0,
                                 const_input_dim=const_input_dim,
                                 fmap_max=fmap_max,
                                 #  **g_args
