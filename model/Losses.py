@@ -1,4 +1,5 @@
 """
+Here is the original copy right of the code:
 -------------------------------------------------
    File Name:    Losses.py
    Author:       Zhonghao Huang

@@ -373,21 +373,4 @@ def resnet152(pretrained=False, **kwargs):
     return model
 
 
-if __name__ == '__main__':
-    import torch
-    # from tensorboardX import SummaryWriter
-    # import hiddenlayer as hl
-    # net = resnet18_encoder_const_input()
-    # net = resnet34_encoder()
-    # net = resnet34_decoder()
-    net = Discriminator(12, 64, 3)
-    # net.fc = nn.Linear(1, )
-    # net = resnet34(num_classes=6)
-    x = torch.randn(4, 12, 5000)
-    y = net(x)
-    print(y.shape)
-    lin = nn.Linear(1, 4)
-    y = lin(y.unsqueeze(-1))
-    print(y.shape)
-    # hl.build_graph(net, x)
 

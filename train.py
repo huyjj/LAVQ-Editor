@@ -225,7 +225,6 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
 
 
 def train(args):
-    # 模型保存文件夹
     model_save_dir = os.path.join(args.work_dir, args.model_name, time.strftime("%Y%m%d%H%M"))
     if not os.path.exists(model_save_dir):
         os.makedirs(model_save_dir)
@@ -323,7 +322,6 @@ def train(args):
 
 
 def Gen_test(args):
-    # 模型保存文件夹
     model_save_dir = os.path.join(args.work_dir, args.model_name, time.strftime("%Y%m%d%H%M"))
     if not os.path.exists(model_save_dir):
         os.makedirs(model_save_dir)
