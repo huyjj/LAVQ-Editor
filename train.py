@@ -388,5 +388,5 @@ if __name__ == '__main__':
     print(configs)
     train(configs)
     # configs.pretrain = True
-    # configs.resume = 'work_dir/LAVQ_Editor/202411010944/best.pth'
+    # configs.resume = 'best.pth'
     # Gen_test(configs)
