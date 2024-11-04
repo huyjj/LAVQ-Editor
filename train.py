@@ -1,5 +1,6 @@
 import os,json,random
 import pandas as pd
+import numpy as np
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader, WeightedRandomSampler
@@ -13,7 +14,6 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = torch.device("cpu")
 torch.manual_seed(41)
 torch.cuda.manual_seed(41)
 
@@ -58,10 +58,10 @@ def train_epoch(Editor, classifier, epoch, logger, criterion, train_dataloader, 
     f1, acc = 0, 0
     for idx, batch in enumerate(train_dataloader):
         
-        ab_ecg = batch[0].to(device).float()[:, :, 452:4548]
+        ab_ecg = batch[0].to(device).float()
         ab_descrip = batch[1]
         target = batch[2].to(device)
-        normal_ecg = batch[3].to(device).float()[:, :, 452:4548] # choose Normal
+        normal_ecg = batch[3].to(device).float() 
         norm_descrip = batch[4]
         batch_size = ab_ecg.shape[0]
 
@@ -95,15 +95,15 @@ def train_epoch(Editor, classifier, epoch, logger, criterion, train_dataloader, 
             f1, acc = utils.calc_f1_acc_one_hot(target, torch.sigmoid(output))
             f1_meter += f1
             acc_meter += acc
-    
-        # loss_meter += loss
+            loss_meter += loss
 
         if idx != 0 and idx % show_interval == 0:
             print_log(f"Indices {indices}", model_save_dir) # <=1 ==>collaspe
+            assert indices > 1, "Indices <= 1, COLLASPE!"
             print_log("Iter %d,G_loss:%.3e, D_loss:%.3e f1:%.3f acc:%.3f" % (idx, g_loss, d_loss, f1, acc), model_save_dir)
             print_log(f"G_q_loss:{g_q_loss} G_cls_loss:{g_cls_loss}, G_ori_loss:{g_f_loss}, G_rec_loss:{g_rec_loss}", model_save_dir)
             print_log(f"D_cls_loss:{d_cls_loss}, D_ori_loss:{d_ori_loss}", model_save_dir)
-    return loss_meter / len(train_dataloader), f1_meter / (it_count+0.000001), acc_meter / (it_count+0.000001)
+    return loss_meter / len(train_dataloader), f1_meter / (it_count+1e-6), acc_meter / (it_count+1e-6)
 
 
 def val_epoch(Editor, classifier, epoch, logger, criterion, val_dataloader, threshold=0.5, save_dir='./'):
@@ -112,10 +112,10 @@ def val_epoch(Editor, classifier, epoch, logger, criterion, val_dataloader, thre
     f1_meter, acc_meter, loss_meter, it_count = 0, 0, 0, 0
     with torch.no_grad():
         for idx, batch in enumerate(val_dataloader):
-            ab_ecg = batch[0].to(device).float()[:, :, 452:4548]
+            ab_ecg = batch[0].to(device).float()
             ab_descrip = batch[1]
             target = batch[2].to(device)
-            normal_ecg = batch[3].to(device).float()[:, :, 452:4548]
+            normal_ecg = batch[3].to(device).float()
             normal_type = batch[5].to(device)
             norm_descrip = batch[4]
             batch_size = ab_ecg.shape[0]
@@ -130,9 +130,7 @@ def val_epoch(Editor, classifier, epoch, logger, criterion, val_dataloader, thre
             mask = mask.detach()
             output = classifier(ecg_edit)
             loss = criterion[1](output, target)
-            logger.add_image('Val_Mask', mask[0].unsqueeze(0), global_step=idx+(epoch-1)*len(val_dataloader), dataformats='CHW')
             logger.add_scalar('Val_Cls_loss', loss.item(), global_step=idx+(epoch-1)*len(val_dataloader))
-            logger.add_scalar('Val_perplexit', prefix_s.detach(), global_step=idx+(epoch-1)*len(val_dataloader))
             loss_meter += loss.item()
             it_count += 1
             output = torch.sigmoid(output)
@@ -171,7 +169,7 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
             print(f"Paient_id {patient_id}")
             num_per = 0
             for idx, batch in enumerate(val_dataloader): # choose some item for generate ecg
-                if num_per >= 200:
+                if num_per >= 50:
                     break
                 ab_ecg = batch[0].to(device).float()
                 ab_descrip = batch[1]
@@ -180,12 +178,12 @@ def GenerateECG(Editor, classifier, logger, test_loader, val_dataloader, thresho
                 choose_item = target.cpu().numpy()!=4
                 choose_item = np.argwhere(choose_item == True).squeeze(1)
                 print(choose_item)
-                if num_per+len(choose_item) > 200:
-                    choose_item = random.sample(list(choose_item), 200-num_per)
+                if num_per+len(choose_item) > 50:
+                    choose_item = random.sample(list(choose_item), 50-num_per)
                 num_per+=len(choose_item)
                 choose_item = torch.tensor(choose_item, device=ab_ecg.device).long()
 
-                normal_ecg = ecg_ori[:, :, 452:4548].repeat(ab_ecg.shape[0], 1, 1)
+                normal_ecg = ecg_ori.repeat(ab_ecg.shape[0], 1, 1)
                 normal_des = list(ori_des)*ab_ecg.shape[0]
                 # forward
                 disease, const_disease, q_loss_s, prefix_s, mask = Editor.disease_model(ab_ecg[:, :12], ab_ecg[:, 12:], ab_descrip)
@@ -241,7 +239,7 @@ def train(args):
 
     Editor = Ecgedit(disease_model=model, structure='linear', resolution=4096, num_channels=12, latent_size=1024, dlatent_size=2048, fmap_max=512,
                    loss="logistic", const_input_dim=0, device=device, n_classes=5, logger=logger, lr=args.lr)
-    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='./ckpt2/resnet34_202311301714sclc-5/best_w.pth')
+    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='best_w.pth')
     best_f1 = -1
     best_acc = -1
     lr = args.lr
@@ -254,11 +252,7 @@ def train(args):
         Editor.gen.load_state_dict(state['state_dict'])
         Editor.dis.load_state_dict(d_state['state_dict'])
         load_matching_parameters(Editor.disease_model, f_state['state_dict'])
-        # Editor.gen_optim.load_state_dict(state['optimizer'])
-        # Editor.dis_optim.load_state_dict(d_state['optimizer'])
         start_epoch = state['epoch']
-        # load_matching_parameters(Editor.gen, state['state_dict'])
-        # load_matching_parameters(Editor.dis, d_state['state_dict'])
         print_log(f"train with resume weight val_f1 {state['f1']}", model_save_dir)
 
     print(f"Model init....")
@@ -285,12 +279,9 @@ def train(args):
     print_log(f"train_datasize {len(train_dataset)} val_datasize {len(val_dataset)}", model_save_dir)
     
     # optimizer and loss
-
     print(f"Optimizer init")
-    criterion = [nn.BCELoss(), nn.CrossEntropyLoss(), nn.MSELoss()]
+    criterion = [nn.BCELoss(), nn.CrossEntropyLoss()]
     
-
-
     print(f"Start Training......")
     for epoch in range(start_epoch, args.max_epoch + 1):
         since = time.time()
@@ -318,7 +309,7 @@ def train(args):
             Editor.gen.load_state_dict(torch.load(best_w)['state_dict'])
             Editor.dis.load_state_dict(torch.load(best_w.replace('.pth', '_d.pth'))['state_dict'])
             print_log(f"*" * 10 + "step into stage%02d lr %.3ef" % (stage, lr), model_save_dir)
-            # utils.adjust_learning_rate(g_optimizer, lr) 
+
 
 
 def Gen_test(args):
@@ -330,27 +321,25 @@ def Gen_test(args):
         json.dump(args.__dict__, f, indent=4)
 
     print_log(f"{args.model_name}: {args.detail}", model_save_dir)
-    logger = Logger(logdir=model_save_dir, flush_secs=2)
+    logger = SummaryWriter(log_dir=model_save_dir, flush_secs=2)
     model = VQSeparator(embedding_dim=512, context_dim=1024, resolution=4096, language_model='model/Bio_ClinaBert')
     Editor = Ecgedit(disease_model=model, structure='linear', resolution=4096, num_channels=12, latent_size=1024, dlatent_size=2048, fmap_max=512,
-                   loss="logistic", const_input_dim=0, device=device, n_classes=5, logger=logger, use_w3=False, lr=args.lr)
+                   loss="logistic", const_input_dim=0, device=device, n_classes=5, logger=logger, lr=args.lr)
     
     if args.clip_dir:
         model.load_state_dict(torch.load(args.clip_dir, map_location='cpu')['state_dict'])
         print(f'Model Load from {args.clip_dir}....')
-    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='./ckpt2/resnet34_202311301714sclc-5/best_w.pth')
+    classifier = EcgClassifer(classifer=args.classifer, num_classes=5, load_pretrain='best_w.pth')
     
 
     print(f"Model init....")
     if args.pretrain:
         state = torch.load(args.resume, map_location='cpu')
-        print(state['state_dict'].keys())
         d_state = torch.load(args.resume.replace('.pth', '_d.pth'), map_location='cpu')
         f_state = torch.load(args.resume.replace('.pth', '_f.pth'), map_location='cpu')
         Editor.gen.load_state_dict(state['state_dict'])
         Editor.dis.load_state_dict(d_state['state_dict'])
         load_matching_parameters(Editor.disease_model, f_state['state_dict'])
-        # Editor.disease_model.load_state_dict(f_state['state_dict'])
         print_log(f"train with pretrained weight val_f1 {state['f1']}", model_save_dir)
     else:
         print(f'Model did not pretrained!')
@@ -362,26 +351,18 @@ def Gen_test(args):
     utils.freeze_model(classifier)
     utils.freeze_model(Editor.dis)
     utils.freeze_model(Editor.gen)
-    # Editor = nn.DataParallel(Editor)
-    # classifier = nn.DataParallel(classifier)
     # data
     train_dataset = ECGDataset(args.data_root+'reprepared/', True, classifier=True)
     train_weight = train_dataset.sample_weight(path='weight_5_scls.json')
     train_sampler = WeightedRandomSampler(train_weight, len(train_weight))
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, 
                                   sampler=train_sampler, num_workers=args.num_workers, collate_fn=collect_fn_ori, drop_last=True)
-    # val_dataset = ECGDataset(args.data_root+'reprepared/', False, classifier=True)
-    # test_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, 
-    #                             num_workers=args.num_workers, collate_fn=collect_fn_ori, drop_last=True)
     # generator
     test_dataset = PTBXLTestClsdataset(args.data_root+'reprepared/', True, choose=['NORM',], 
-                                       train_lis=['./PublicDataset/ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1'])  # choose normal
+                                       train_lis=['ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/reprepared/Patient_Select_145_sclc_X_half1'])  # choose normal
     test_dataloader = DataLoader(test_dataset, batch_size=1, 
                                 num_workers=args.num_workers, drop_last=True)
     print_log(f"train_datasize {len(train_dataset)} test_datasize {len(test_dataset)}", model_save_dir)
-    
-    # optimizer and loss
-
     
     print(f"Start Generate......")
     val_loss, val_f1, val_acc = GenerateECG(Editor, classifier, logger, test_dataloader,
@@ -407,5 +388,5 @@ if __name__ == '__main__':
     print(configs)
     train(configs)
     # configs.pretrain = True
-    # configs.resume = 'work_dir/best.pth'
+    # configs.resume = 'work_dir/LAVQ_Editor/202411010944/best.pth'
     # Gen_test(configs)

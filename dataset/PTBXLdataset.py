@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import random
 from sklearn.utils import shuffle
+from scipy.interpolate import interp1d
 
 def np_move_avg_batch(a,n=10,mode="same"):
     for j in range(len(a)):
@@ -14,19 +15,50 @@ def np_move_avg_batch(a,n=10,mode="same"):
             a[j,i] = np.convolve(a[j,i], np.ones((n,))/n, mode=mode)
     return a
 
+
+
+def align_wave(ecg, crop_wave):
+    '''
+    The peak detection algorithm from the Python
+    package NeuroKit2 is utilized to extract the indices of the R
+    peaks in the ECG. The segments from 100 points before the
+    first R peak to 100 points after the seventh R peak are extracted. These segments are then scaled proportionally to a
+    fixed length of 4096 points for the following experiments.
+    
+    Args:
+    ecg: (12, 5000)
+    crop_wave: (5, 5000)  p, q, r, s, t index extracted by Neurokit2
+    
+    Returns:
+    align_ecg: (12, 4096)
+    '''
+
+    r_peak_indices = np.nonzero(crop_wave[2])[0]  # r peak index
+    if len(r_peak_indices) < 7:
+        # Clip the ECG signal to 4096 points
+        return ecg[:, 452:4548]
+    else:
+        align_ecg = np.zeros((12, 4096))
+        # Extract the segment from 100 points before the first R peak to 100 points after the seventh R peak
+        start_index = r_peak_indices[0] - 100
+        end_index = r_peak_indices[6] + 100
+        if start_index < 0:
+            start_index = 0
+        if end_index > 4999:
+            end_index = 4999
+        # Interpolate the segment to 4096 points
+        for i in range(ecg.shape[0]):
+            f = interp1d(np.arange(end_index - start_index + 1), ecg[i, start_index:end_index + 1], kind='cubic')
+            align_ecg[i] = f(np.linspace(0, end_index - start_index, 4096))
+    
+        return align_ecg
+
+
 class PTBXLOridataset(data.Dataset):
     '''
-    Work flow: 
-    剔除同一个人有Norm和得病(且只有一种病)的数据, 作为测试集Patient_Selected_291.csv, 剩余全部为训练集
-    多标签的数据没有剔除
-    把csv中的report作为description, 5个superclass: HYP, MI, CD, STTC, NORM
-
+    The 'report' in the CSV is used as the description, with 5 superclasses: HYP, MI, CD, STTC, NORM.
     '''
     def __init__(self, root='', train=True, classifier=False, choose_norm=False):
-        '''
-        root: 
-        description: scp_statements.csv
-        '''
         classes = ['HYP', 'MI', 'CD', 'STTC', 'NORM']
         self.root = root
         self.cls_map = {str([classes[id]]): id for id in range(len(classes))}
@@ -41,9 +73,8 @@ class PTBXLOridataset(data.Dataset):
             self.crop_wave = np.load(os.path.join(root, 'Train_sclc_X_crop_wave.npy'))
             self.report = self.description['report'].to_list()
             self.ecg_cls = self.description['detail_superclass'].to_list()
-            # choose normal
             if choose_norm:
-                abnormal_cls = self.description['detail_superclass']  # use 20 classes
+                abnormal_cls = self.description['detail_superclass'] 
                 choose_class = []
                 for i in range(len(abnormal_cls)):
                     abnormal = eval(abnormal_cls[i])
@@ -59,14 +90,13 @@ class PTBXLOridataset(data.Dataset):
 
         else:
             self.description = pd.read_csv(os.path.join(root, 'Patient_Selected_291_sclc.csv'))
-            self.ecg = np.load(os.path.join(root, 'Patient_Selected_291_sclc_X.npy')) # 732 条
+            self.ecg = np.load(os.path.join(root, 'Patient_Selected_291_sclc_X.npy')) 
             self.ecg_cls = self.description['detail_superclass'].to_list()
             self.report = self.description['report'].to_list()
             self.crop_wave = np.load(os.path.join(root, 'Patient_Selected_291_sclc_X_crop_wave.npy'))
 
             self.description_style = pd.read_csv(os.path.join(root, 'Train_sclc.csv'))
-            # choose ill class
-            abnormal_cls = self.description_style['detail_superclass']  # use 20 classes
+            abnormal_cls = self.description_style['detail_superclass']  
             choose_class = []
             for i in range(len(abnormal_cls)):
                 abnormal = eval(abnormal_cls[i])
@@ -100,32 +130,30 @@ class PTBXLOridataset(data.Dataset):
         return out
     
     def __getitem__(self, item):
-        # random 取一个normal的
-        
         if self.train:
             if self.choose_norm:
                 ind = (item + random.randint(1, len(self.ecg_style)-1)) % len(self.ecg_style)
-                ecg_1 = np.concatenate([np.transpose(self.ecg[item]), self.crop_wave[item]], axis=0)
+                ecg_1 = align_wave(np.transpose(self.ecg[item]), self.crop_wave[item])
                 descript_1 = self.report[item]
                 cls_1 = self.cls_map[self.ecg_cls[item]]
-                ecg_2 = np.concatenate([np.transpose(self.ecg_style[ind]), self.crop_wave_style[ind]], axis=0)
+                ecg_2 = align_wave(np.transpose(self.ecg_style[ind]), self.crop_wave_style[ind])
                 descript_2 = self.report_style[ind]
                 cls_2 = self.cls_map[self.ecg_cls_style[ind]]
             else:
                 ind = (item + random.randint(1, len(self.ecg)-1)) % len(self.ecg)
-                ecg_1 = np.concatenate([np.transpose(self.ecg[item]), self.crop_wave[item]], axis=0)
+                ecg_1 = align_wave(np.transpose(self.ecg[item]), self.crop_wave[item])
                 descript_1 = self.report[item]
                 cls_1 = self.cls_map[self.ecg_cls[item]]
-                ecg_2 = np.concatenate([np.transpose(self.ecg[ind]), self.crop_wave[ind]], axis=0)
+                ecg_2 = align_wave(np.transpose(self.ecg[ind]), self.crop_wave[ind])
                 descript_2 = self.report[ind]
                 cls_2 = self.cls_map[self.ecg_cls[ind]]
            
         else:
-            ecg_1 = np.concatenate([np.transpose(self.ecg_style[item]), self.crop_wave_style[item]], axis=0)
+            ecg_1 = align_wave(np.transpose(self.ecg_style[item]), self.crop_wave_style[item])
             descript_1 = self.report_style[item]
             cls_1 = self.cls_map[self.ecg_cls_style[item]]
             ind = random.randint(0, len(self.ecg)-1)
-            ecg_2 = np.concatenate([np.transpose(self.ecg[ind]), self.crop_wave[ind]], axis=0)
+            ecg_2 = align_wave(np.transpose(self.ecg[ind]), self.crop_wave[ind])
             descript_2 = self.report[ind]
             cls_2 = self.cls_map[self.ecg_cls[ind]]
 
@@ -134,16 +162,10 @@ class PTBXLOridataset(data.Dataset):
 
 class PTBXLTestClsdataset(data.Dataset):
     '''
-    合并生成的和真实的，一起分类，一起测试
-    1、用所有正常的, 根据训练集的weight，生成相同数量的ecg
-    2、用不正常的，生成很多正常的部分
-    dataset只负责导入npy和cls类别，测试数据始终为291个人的ecg，但选择是否有病
+    Combines generated and real ECG data for classification and testing.
+    Use all normal (NORM) data to generate an equal number of ECGs based on the training set weights.
     '''
     def __init__(self, root, train=True, train_lis=[], choose=['NORM',], avg=None):
-        '''
-        root: 
-        description: scp_statements.csv
-        '''
         self.classes = ['HYP', 'MI', 'CD', 'STTC', 'NORM']
         self.root = root
         self.cls_map = {self.classes[id]: id for id in range(len(self.classes))}
@@ -159,11 +181,11 @@ class PTBXLTestClsdataset(data.Dataset):
                 description = pd.read_csv(name+'.csv')
                 ecg = np.load(name+'.npy')
                 if name[-3:] == 'ecg':
-                    print("move avg!")
                     ecg = np_move_avg_batch(ecg)
                 if ecg.shape[1] == 5000:
                     ecg = ecg.transpose(0, 2, 1)
-                    ecg = ecg[:, :, 452:4548]
+                    crop_wave = np.load(name+'_crop_wave.npy')
+                    ecg = [align_wave(ecg[i], crop_wave[i]) for i in range(len(ecg))]
                 ecg_cls = description['detail_superclass'].to_list()
                 self.patient_id.extend(description['patient_id'].to_list())
                 self.ecg_cls.extend(ecg_cls)
@@ -178,14 +200,12 @@ class PTBXLTestClsdataset(data.Dataset):
                 choose_class = []
                 for i in range(len(self.ecg_cls)):
                     abnormal = eval(self.ecg_cls[i])
-                    if len(abnormal)==1 and (abnormal[0] in choose): # choose abnormal
-                    # if len(abnormal)==1 and (abnormal[0] == self.classes[4]): # choose normal
+                    if len(abnormal)==1 and (abnormal[0] in choose): 
                         choose_class.append(True) 
                     else:
                         choose_class.append(False)
                 self.ecg = self.ecg[choose_class]
                 choose_item = np.argwhere(choose_class == True).astype(int)
-                # self.description = description[choose_class]
                 self.ecg_cls = self.description[choose_class]['detail_superclass'].to_list()
                 self.report = self.description[choose_class]['report'].to_list()
                 self.patient_id = self.description[choose_class]['patient_id'].to_list()
@@ -193,19 +213,18 @@ class PTBXLTestClsdataset(data.Dataset):
 
         else:
             description = pd.read_csv(os.path.join(root, 'Patient_Selected_291_sclc.csv'))
-            ecg = np.load(os.path.join(root, 'Patient_Selected_291_sclc_X.npy')) # 732 条
+            ecg = np.load(os.path.join(root, 'Patient_Selected_291_sclc_X.npy')) 
             ecg_cls = description['detail_superclass'].to_list()
 
             choose_class = []
             for i in range(len(ecg_cls)):
                 abnormal = eval(ecg_cls[i])
-                if len(abnormal)==1 and (abnormal[0] in choose): # choose abnormal
-                # if len(abnormal)==1 and (abnormal[0] == self.classes[4]): # choose normal
+                if len(abnormal)==1 and (abnormal[0] in choose): 
                     choose_class.append(True) 
                 else:
                     choose_class.append(False)
 
-            self.ecg = ecg[choose_class].transpose(0, 2, 1)
+            self.ecg = ecg[choose_class].transpose(0, 2, 1)[:, :, 452:4548]
             self.description = description[choose_class]
             self.ecg_cls = description[choose_class]['detail_superclass'].to_list()
             self.report = description[choose_class]['report'].to_list()
@@ -215,12 +234,11 @@ class PTBXLTestClsdataset(data.Dataset):
 
     def sample_weight(self):
         weight_id_t = {self.classes[id]: 0 for id in range(len(self.classes))}
-        # abnormal_cls = list(Y['detail_class'])
         for i in self.ecg_cls:
             if type(i) == str:
                 if len(eval(i)) == 0:
                     continue
-                cl = eval(i)[0]  # always use the first cls for weight sample
+                cl = eval(i)[0]  
                 weight_id_t[cl] += 1
             else:
                 weight_id_t[self.classes[i]] += 1
