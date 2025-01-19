@@ -31,13 +31,20 @@ ptb-xl-a-large-publicly-available-electrocardiography-dataset-1.0.3/
 
 
 ## 💻 Usage
-Before starting the training, a classifier is needed to monitor the training process.
-However, the quality of this classifier is not important.
-You can choose anyway to obtain the best_w.pth.
-To train LAVQ-Editor, you can use the following code.
+
+### Process Overview:
+1. **Train LAVQ-Editor**: First, train the LAVQ-Editor using the above command. 
 ```
 python train.py --model_name LAVQ_Editor --batch_size 128 
 ```
+2. **Generate New ECG**: After training, generate new ECG data by the Gen_test() function in train.py. The generated ECG data is used to augment the training set for the classifier.
+
+3. **Retrain Classifier**: Next, add generated ECG data to 'train_lis' of the train_dataset and retrain classifier by running:
+```
+python train_classifier.py
+```
+
+
 
 ## 💼 Support
 If you need help with the tool, you can raise an issue on our GitHub issue tracker. For other questions, please contact our team.
